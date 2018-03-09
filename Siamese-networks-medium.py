@@ -5,10 +5,28 @@
 # 
 # This is the jupyter notebook that accompanies
 
-# ## Imports
-# All the imports are defined here
 
-# get_ipython().magic(u'matplotlib inline')
+
+'''TO DO
+    - Plot ROC curve
+    - save all info including
+        - specificity
+        - sensitivity
+        - accuracy
+    - command line options
+    - Image Tests to prove accuracy
+    - Show image as a colormap for visualization purposes(Currently done matlab)
+'''
+''' Done
+    - make network input rgb images
+    - Save Network weights
+    - load network weights
+    - pop the top of the network and input is only one image
+    - show popped off layer as a grayscale sequencer
+    - Save grayscale sequencer
+'''
+
+#Imports
 import torchvision
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
@@ -16,6 +34,7 @@ from torch.utils.data import DataLoader,Dataset
 import matplotlib.pyplot as plt
 import torchvision.utils
 import numpy as np
+from sklearn.preprocessing import normalize
 import random
 from PIL import Image
 import torch
@@ -29,11 +48,14 @@ import torch.nn.functional as F
 # ## Helper functions
 # Set of helper functions
 
-def imshow(img,text=None,should_save=False):
+def imshow(img,text=None, diagnose = None,should_save=False):
     npimg = img.numpy()
     plt.axis("off")
     if text:
         plt.text(75, 8, text, style='italic',fontweight='bold',
+            bbox={'facecolor':'white', 'alpha':0.8, 'pad':10})
+    if diagnose:
+        plt.text(75, 0, diagnose, style='italic',fontweight='bold',
             bbox={'facecolor':'white', 'alpha':0.8, 'pad':10})
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()    
@@ -43,14 +65,21 @@ def show_plot(iteration,loss):
     plt.show()
 
 
+def save_checkpoint(state, is_final = False, filename = 'checkpoint.pth.tar'):
+    if is_final:
+        torch.save(state,'final_weights.pth.tar')
+    else:
+        torch.save(state,filename)
+
+
 # ## Configuration Class
 # A simple class to manage configuration
 
 class Config():
-    training_dir = "/home/jzelek/Documents/datasets/SkinData/train_set/"
-    testing_dir = "/home/jzelek/Documents/datasets/SkinData/test_set/"
-    train_batch_size = 64
-    train_number_epochs = 100
+    training_dir = "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
+    testing_dir = "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
+    train_batch_size =  20 #64
+    train_number_epochs = 5 #d100
 
 
 # ## Custom Dataset Class
@@ -77,8 +106,8 @@ class SiameseNetworkDataset(Dataset):
 
         img0 = Image.open(img0_tuple[0])
         img1 = Image.open(img1_tuple[0])
-        img0 = img0.convert("L")
-        img1 = img1.convert("L")
+        # img0 = img0.convert("L")
+        # img1 = img1.convert("L")
         
         if self.should_invert:
             img0 = PIL.ImageOps.invert(img0)
@@ -111,17 +140,17 @@ siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset,
 # The top row and the bottom row of any column is one pair. The 0s and 1s correspond to the column of the image.
 # 0 indiciates dissimilar, and 1 indicates similar.
 
-vis_dataloader = DataLoader(siamese_dataset,
-                        shuffle=True,
-                        num_workers=8,
-                        batch_size=8)
-dataiter = iter(vis_dataloader)
+# vis_dataloader = DataLoader(siamese_dataset,
+#                         shuffle=True,
+#                         num_workers=8,
+#                         batch_size=8)
+# dataiter = iter(vis_dataloader)
 
 
-example_batch = next(dataiter)
-concatenated = torch.cat((example_batch[0],example_batch[1]),0)
-imshow(torchvision.utils.make_grid(concatenated))
-print(example_batch[2].numpy())
+# example_batch = next(dataiter)
+# concatenated = torch.cat((example_batch[0],example_batch[1]),0)
+# imshow(torchvision.utils.make_grid(concatenated))
+# print(example_batch[2].numpy())
 
 
 # ## Neural Net Definition
@@ -132,29 +161,41 @@ class SiameseNetwork(nn.Module):
         super(SiameseNetwork, self).__init__()
         self.cnn1 = nn.Sequential(
             nn.ReflectionPad2d(1),
-            nn.Conv2d(1, 4, kernel_size=3),
+            nn.Conv2d(3, 4, kernel_size=3), # 1x100x100 to 4x100x100
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(4),
             
             nn.ReflectionPad2d(1),
-            nn.Conv2d(4, 8, kernel_size=3),
+            nn.Conv2d(4, 8, kernel_size=3), # 4x100x100 to 8x100x100
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(8),
 
             nn.ReflectionPad2d(1),
-            nn.Conv2d(8, 8, kernel_size=3),
+            nn.Conv2d(8, 8, kernel_size=3), # 8x100x100 to 8x100x100
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(8),
+
+            nn.ReflectionPad2d(1),
+            nn.Conv2d(8, 4, kernel_size=3), # 8x100x100 to 4x100x100
+            nn.ReLU(inplace=True),
+            nn.BatchNorm2d(4),
+
+            nn.ReflectionPad2d(1),
+            nn.Conv2d(4, 1, kernel_size=3), # 4x100x100 to 1x100x100
+            nn.ReLU(inplace=True),
+            nn.BatchNorm2d(1),
+
+            nn.MaxPool2d(4)                 # 1x100x100 to 1x25x25
         )
 
         self.fc1 = nn.Sequential(
-            nn.Linear(8*100*100, 500),
+            nn.Linear(1*25*25, 500),        # 1x25x25 (625) to 500
             nn.ReLU(inplace=True),
 
-            nn.Linear(500, 500),
+            nn.Linear(500, 500),            # 500 to 500
             nn.ReLU(inplace=True),
 
-            nn.Linear(500, 5))
+            nn.Linear(500, 5))              # 500 to 5
 
     def forward_once(self, x):
         output = self.cnn1(x)
@@ -221,6 +262,9 @@ for epoch in range(0,Config.train_number_epochs):
             loss_history.append(loss_contrastive.data[0])
 show_plot(counter,loss_history)
 
+print('save model')
+torch.save(net,'final_training.pt')
+
 
 # ## Some simple testing
 # The last 3 subjects were held out from the training, and will be used to test. The Distance between each image pair denotes the degree of similarity the model found between the two images. Less means it found more similar, while higher values indicate it found them to be dissimilar.
@@ -236,10 +280,46 @@ test_dataloader = DataLoader(siamese_dataset,num_workers=6,batch_size=1,shuffle=
 dataiter = iter(test_dataloader)
 x0,_,_ = next(dataiter)
 
-for i in range(10):
+for i in range(1):
     _,x1,label2 = next(dataiter)
     concatenated = torch.cat((x0,x1),0)
     
     output1,output2 = net(Variable(x0).cuda(),Variable(x1).cuda())
     euclidean_distance = F.pairwise_distance(output1, output2)
-    imshow(torchvision.utils.make_grid(concatenated),'Dissimilarity: {:.2f}'.format(euclidean_distance.cpu().data.numpy()[0][0]))
+
+    if label2[0][0] == 0:
+        val = 'dissimilar'
+    else:
+        val = 'similar'
+    imshow(torchvision.utils.make_grid(concatenated),'Dissimilarity: {:.2f}'.format(euclidean_distance.cpu().data.numpy()[0][0]), 'moles are ' + val)
+
+
+
+# load new model, pop top, run through image, show image
+print('loading model, popping top, running through img, showing image')
+pretrained_model = torch.load('final_training.pt')        # load model
+
+# remove fully connected layers
+removed = list(pretrained_model.children())[:-1]
+pretrained_model = torch.nn.Sequential(*removed)
+# print(list(pretrained_model.children()))
+
+# generate output
+output_final = pretrained_model.forward(Variable(x1).cuda())
+# output_final.norm()
+npOut = output_final.cpu().data.numpy()
+# npOut.reshape((1,100,100,1))
+# npOut = npOut[0]
+# npOut = npOut[0][0]
+print(type(npOut))
+print(npOut.size)
+print(npOut[0][0].ndim)
+npOut *= 255.0/npOut.max()
+imgOut = Image.fromarray(npOut[0][0],'L')
+imgOut.save('my.png')
+imgOut.show()
+# normOut = normalize(npOut[:,np.newaxis], axis = 0).ravel()
+# print(normout)
+# print(len(output_final))
+# print(type(output_final))
+# print(output_final)
