@@ -8,14 +8,18 @@
 
 
 '''TO DO
-    - Plot ROC curve
+    - log accuracy and whether comparison was malignant or benign and image names for test images: see https://towardsdatascience.com/pytorch-tutorial-distilled-95ce8781a89c
+    - implement command line options:
+    	- test (with params like --silent and location of saving) or train
     - save all info including
         - specificity
         - sensitivity
         - accuracy
-    - command line options
-    - Image Tests to prove accuracy
+    - Image Tests to prove accuracy; method to show similarity of image (histogram of values [district or texture based ie. grouping of pixel], kertosis, std of intensities within each spatial region,  morphological analysis, connected comp analy, spatial clustering algorithm) : see https://github.com/orsinium/textdistance
     - Show image as a colormap for visualization purposes(Currently done matlab)
+	- implement a learning rate scheduler
+	- Plot ROC curve
+	- save using state_dict() maybe? pytorch.org http://pytorch.org/docs/master/notes/serialization.html
 '''
 ''' Done
     - make network input rgb images
@@ -38,12 +42,26 @@ from sklearn.preprocessing import normalize
 import random
 from PIL import Image
 import torch
+print(torch.__version__)
 from torch.autograd import Variable
 import PIL.ImageOps    
 import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
 
+import argparse
+
+# command line to get required actions
+parser = argparse.ArgumentParser()
+parser.add_argument("action")
+
+args = parser.parse_args()
+
+print(args.action)
+
+
+# global variables
+isCuda = False
 
 # ## Helper functions
 # Set of helper functions
@@ -76,10 +94,10 @@ def save_checkpoint(state, is_final = False, filename = 'checkpoint.pth.tar'):
 # A simple class to manage configuration
 
 class Config():
-    training_dir = "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
-    testing_dir = "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
+    training_dir = "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set" #"/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
+    testing_dir = "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" #"/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
     train_batch_size =  20 #64
-    train_number_epochs = 5 #d100
+    train_number_epochs = 20 #d100
 
 
 # ## Custom Dataset Class
@@ -230,96 +248,114 @@ class ContrastiveLoss(torch.nn.Module):
 
 
 # ## Training Time!
+if args.action == "train":
 
-train_dataloader = DataLoader(siamese_dataset,
-                        shuffle=True,
-                        num_workers=8,
-                        batch_size=Config.train_batch_size)
-
-
-net = SiameseNetwork().cuda()
-criterion = ContrastiveLoss()
-optimizer = optim.Adam(net.parameters(),lr = 0.0005 )
-
-counter = []
-loss_history = [] 
-iteration_number= 0
+	train_dataloader = DataLoader(siamese_dataset,
+	                        shuffle=True,
+	                        num_workers=8,
+	                        batch_size=Config.train_batch_size)
 
 
-for epoch in range(0,Config.train_number_epochs):
-    for i, data in enumerate(train_dataloader,0):
-        img0, img1 , label = data
-        img0, img1 , label = Variable(img0).cuda(), Variable(img1).cuda() , Variable(label).cuda()
-        output1,output2 = net(img0,img1)
-        optimizer.zero_grad()
-        loss_contrastive = criterion(output1,output2,label)
-        loss_contrastive.backward()
-        optimizer.step()
-        if i %10 == 0 :
-            print("Epoch number {}\n Current loss {}\n".format(epoch,loss_contrastive.data[0]))
-            iteration_number +=10
-            counter.append(iteration_number)
-            loss_history.append(loss_contrastive.data[0])
-show_plot(counter,loss_history)
+	if isCuda:
+		net = SiameseNetwork().cuda()
+	else:
+		net = SiameseNetwork()
 
-print('save model')
-torch.save(net,'final_training.pt')
+	criterion = ContrastiveLoss()
+	optimizer = optim.Adam(net.parameters(),lr = 0.0005 )
+
+	counter = []
+	loss_history = [] 
+	iteration_number= 0
+
+
+	for epoch in range(0,Config.train_number_epochs):
+	    for i, data in enumerate(train_dataloader,0):
+	        img0, img1 , label = data
+	        if isCuda:
+	        	img0, img1 , label = Variable(img0).cuda(), Variable(img1).cuda() , Variable(label).cuda()
+	        else:
+	        	img0, img1 , label = Variable(img0), Variable(img1), Variable(label)
+
+	        output1,output2 = net(img0,img1)
+	        optimizer.zero_grad()
+	        loss_contrastive = criterion(output1,output2,label)
+	        loss_contrastive.backward()
+	        optimizer.step()
+	        if i %10 == 0 :
+	            print("Epoch number {}\n Current loss {}\n".format(epoch,loss_contrastive.data[0]))
+	            iteration_number +=10
+	            counter.append(iteration_number)
+	            loss_history.append(loss_contrastive.data[0])
+	show_plot(counter,loss_history)
+
+	print('save model')
+	torch.save(net,'final_training.pt')
 
 
 # ## Some simple testing
-# The last 3 subjects were held out from the training, and will be used to test. The Distance between each image pair denotes the degree of similarity the model found between the two images. Less means it found more similar, while higher values indicate it found them to be dissimilar.
+if args.action == "test":
+	net = torch.load('final_training.pt')
+	# The last 3 subjects were held out from the training, and will be used to test. The Distance between each image pair denotes the degree of similarity the model found between the two images. Less means it found more similar, while higher values indicate it found them to be dissimilar.
 
-folder_dataset_test = dset.ImageFolder(root=Config.testing_dir)
-siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset_test,
-                                        transform=transforms.Compose([transforms.Scale((100,100)),
-                                                                      transforms.ToTensor()
-                                                                      ])
-                                       ,should_invert=False)
+	folder_dataset_test = dset.ImageFolder(root=Config.testing_dir)
+	siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset_test,
+	                                        transform=transforms.Compose([transforms.Scale((100,100)),
+	                                                                      transforms.ToTensor()
+	                                                                      ])
+	                                       ,should_invert=False)
 
-test_dataloader = DataLoader(siamese_dataset,num_workers=6,batch_size=1,shuffle=True)
-dataiter = iter(test_dataloader)
-x0,_,_ = next(dataiter)
+	test_dataloader = DataLoader(siamese_dataset,num_workers=6,batch_size=1,shuffle=True)
+	dataiter = iter(test_dataloader)
+	x0,_,_ = next(dataiter)
 
-for i in range(1):
-    _,x1,label2 = next(dataiter)
-    concatenated = torch.cat((x0,x1),0)
-    
-    output1,output2 = net(Variable(x0).cuda(),Variable(x1).cuda())
-    euclidean_distance = F.pairwise_distance(output1, output2)
+	for i in range(5):
+	    _,x1,label2 = next(dataiter)
+	    concatenated = torch.cat((x0,x1),0)
 
-    if label2[0][0] == 0:
-        val = 'dissimilar'
-    else:
-        val = 'similar'
-    imshow(torchvision.utils.make_grid(concatenated),'Dissimilarity: {:.2f}'.format(euclidean_distance.cpu().data.numpy()[0][0]), 'moles are ' + val)
+	    if isCuda:
+	    	output1,output2 = net(Variable(x0).cuda(),Variable(x1).cuda())
+	    else:
+	    	output1,output2 = net(Variable(x0),Variable(x1))
+
+	    euclidean_distance = F.pairwise_distance(output1, output2)
+
+	    if label2[0][0] == 0:
+	        val = 'dissimilar'
+	    else:
+	        val = 'similar'
+	    imshow(torchvision.utils.make_grid(concatenated),'Dissimilarity: {:.2f}'.format(euclidean_distance.cpu().data.numpy()[0][0]), 'moles are ' + val)
 
 
 
-# load new model, pop top, run through image, show image
-print('loading model, popping top, running through img, showing image')
-pretrained_model = torch.load('final_training.pt')        # load model
+	# load new model, pop top, run through image, show image
+	print('loading model, popping top, running through img, showing image')
+	pretrained_model = torch.load('final_training.pt')        # load model
 
-# remove fully connected layers
-removed = list(pretrained_model.children())[:-1]
-pretrained_model = torch.nn.Sequential(*removed)
-# print(list(pretrained_model.children()))
+	# remove fully connected layers
+	removed = list(pretrained_model.children())[:-1]
+	pretrained_model = torch.nn.Sequential(*removed)
+	# print(list(pretrained_model.children()))
 
-# generate output
-output_final = pretrained_model.forward(Variable(x1).cuda())
-# output_final.norm()
-npOut = output_final.cpu().data.numpy()
-# npOut.reshape((1,100,100,1))
-# npOut = npOut[0]
-# npOut = npOut[0][0]
-print(type(npOut))
-print(npOut.size)
-print(npOut[0][0].ndim)
-npOut *= 255.0/npOut.max()
-imgOut = Image.fromarray(npOut[0][0],'L')
-imgOut.save('my.png')
-imgOut.show()
-# normOut = normalize(npOut[:,np.newaxis], axis = 0).ravel()
-# print(normout)
-# print(len(output_final))
-# print(type(output_final))
-# print(output_final)
+	# generate output
+	if isCuda:
+		output_final = pretrained_model.forward(Variable(x1).cuda())
+	else:
+		output_final = pretrained_model.forward(Variable(x1))
+	# output_final.norm()
+	npOut = output_final.cpu().data.numpy()
+	# npOut.reshape((1,100,100,1))
+	# npOut = npOut[0]
+	# npOut = npOut[0][0]
+	print(type(npOut))
+	print(npOut.size)
+	print(npOut[0][0].ndim)
+	npOut *= 255.0/npOut.max()
+	imgOut = Image.fromarray(npOut[0][0],'L')
+	imgOut.save('my.png')
+	imgOut.show()
+	# normOut = normalize(npOut[:,np.newaxis], axis = 0).ravel()
+	# print(normout)
+	# print(len(output_final))
+	# print(type(output_final))
+	# print(output_final)

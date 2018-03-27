@@ -1,24 +1,19 @@
-# Facial Similarity with Siamese Networks in Pytorch
-You can read the accompanying article at https://hackernoon.com/one-shot-learning-with-siamese-networks-in-pytorch-8ddaab10340e
+# Cancer Similarity with Siamese Networks in Pytorch
 
-The goal is to teach a siamese network to be able to distinguish pairs of images. 
-This project uses pytorch. 
+The goal of this project is to accurately determine between benign and malignant skin images and in turn encode the images into a distint map. 
 
-Any dataset can be used. Each class must be in its own folder. This is the same structure that PyTorch's own image folder dataset uses.
+This project uses pytorch. Any dataset can be used. Each class must be in its own folder. This is the same structure that PyTorch's own image folder dataset uses.
 
-### Converting pgm files (if you decide to use the AT&T dataset) to png
-1. Install imagemagick 
-2. Go to root directory of the images
-3. Run `find -name "*pgm" | xargs -I {} convert {} {}.png`
+Inspiration was taken from the following article: https://hackernoon.com/one-shot-learning-with-siamese-networks-in-pytorch-8ddaab10340e
 
+#### Executing scripts
 
+$ python3 Siamese-networks-medium.py train
 
-## Installing the right version of PyTorch 
-You can go over to http://pytorch.org and download version **0.3.0.post4** for your setup.
-For Cuda 8 on linux it can be installed using : pip install http://download.pytorch.org/whl/cu80/torch-0.3.0.post4-cp36-cp36m-linux_x86_64.whl 
+$ python3 Siamese-networks-medium.py test
 
 
-You can find other project requirements in `requirements.txt` , which you can install using `pip install -r requirements.txt`
+#### Dependencies
+This project was implemented on python3.5 and torch version 0.3.1
 
-#### This project requires python3.6
 
