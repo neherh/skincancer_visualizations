@@ -8,14 +8,20 @@
 
 
 '''TO DO
-    - log accuracy and whether comparison was malignant or benign and image names for test images: see https://towardsdatascience.com/pytorch-tutorial-distilled-95ce8781a89c
+    - log accuracy, precision, recall(sensitivity), specificity  and whether comparison was malignant or benign and image names for test images: see https://towardsdatascience.com/pytorch-tutorial-distilled-95ce8781a89c
+        - user logger and visdom
+    - add visualization tools as suggested in by 'distilled' webstite and pytorch in review (pick one):
+        - https://github.com/facebookresearch/visdom
+        - https://github.com/lanpa/tensorboard-pytorch
     - implement command line options:
     	- test (with params like --silent and location of saving) or train
     - save all info including
         - specificity
         - sensitivity
         - accuracy
-    - Image Tests to prove accuracy; method to show similarity of image (histogram of values [district or texture based ie. grouping of pixel], kertosis, std of intensities within each spatial region,  morphological analysis, connected comp analy, spatial clustering algorithm) : see https://github.com/orsinium/textdistance
+    - Image Tests to prove accuracy; 
+        - method to show similarity of image (histogram of values [district or texture based ie. grouping of pixel], kertosis, std of intensities within each spatial region,  morphological analysis, connected comp analy, spatial clustering algorithm) : see https://github.com/orsinium/textdistance
+        - Alex Suggests to use t-sne and some separability analysis (for the sequence)
     - Show image as a colormap for visualization purposes(Currently done matlab)
 	- implement a learning rate scheduler
 	- Plot ROC curve
@@ -61,7 +67,7 @@ print(args.action)
 
 
 # global variables
-isCuda = False
+isCuda = True
 
 # ## Helper functions
 # Set of helper functions
@@ -94,8 +100,8 @@ def save_checkpoint(state, is_final = False, filename = 'checkpoint.pth.tar'):
 # A simple class to manage configuration
 
 class Config():
-    training_dir = "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set" #"/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
-    testing_dir = "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" #"/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
+    training_dir = "/home/jzelek/Documents/datasets/SkinData/train_sub_set/" #"/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set" 
+    testing_dir =  "/home/jzelek/Documents/datasets/SkinData/test_sub_set/" # "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set"
     train_batch_size =  20 #64
     train_number_epochs = 20 #d100
 
@@ -287,7 +293,7 @@ if args.action == "train":
 	            iteration_number +=10
 	            counter.append(iteration_number)
 	            loss_history.append(loss_contrastive.data[0])
-	show_plot(counter,loss_history)
+	#show_plot(counter,loss_history)
 
 	print('save model')
 	torch.save(net,'final_training.pt')
