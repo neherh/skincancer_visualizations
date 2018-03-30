@@ -67,7 +67,7 @@ print(args.action)
 
 
 # global variables
-isCuda = True
+isCuda = False
 
 # ## Helper functions
 # Set of helper functions
@@ -100,10 +100,10 @@ def save_checkpoint(state, is_final = False, filename = 'checkpoint.pth.tar'):
 # A simple class to manage configuration
 
 class Config():
-    training_dir = "/home/jzelek/Documents/datasets/SkinData/train_sub_set/" #"/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set" 
-    testing_dir =  "/home/jzelek/Documents/datasets/SkinData/test_sub_set/" # "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set"
-    train_batch_size =  20 #64
-    train_number_epochs = 20 #d100
+    training_dir =  "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
+    testing_dir =   "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" # "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
+    train_batch_size =  1 #64
+    train_number_epochs = 40 #d100
 
 
 # ## Custom Dataset Class
@@ -154,7 +154,8 @@ folder_dataset = dset.ImageFolder(root=Config.training_dir)
 
 
 siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset,
-                                        transform=transforms.Compose([transforms.Scale((100,100)),
+                                        transform=transforms.Compose([transforms.Resize((100,100)),
+                                        							  transforms.RandomRotation((0,360)),
                                                                       transforms.ToTensor()
                                                                       ])
                                        ,should_invert=False)
@@ -268,7 +269,8 @@ if args.action == "train":
 		net = SiameseNetwork()
 
 	criterion = ContrastiveLoss()
-	optimizer = optim.Adam(net.parameters(),lr = 0.0005 )
+	optimizer = optim.Adam(net.parameters(),lr = 0.005 )
+	scheduler = optim.lr_scheduler.StepLR(optimizer,step_size = 30, gamma = 0.1) 
 
 	counter = []
 	loss_history = [] 
@@ -276,23 +278,24 @@ if args.action == "train":
 
 
 	for epoch in range(0,Config.train_number_epochs):
-	    for i, data in enumerate(train_dataloader,0):
-	        img0, img1 , label = data
-	        if isCuda:
-	        	img0, img1 , label = Variable(img0).cuda(), Variable(img1).cuda() , Variable(label).cuda()
-	        else:
-	        	img0, img1 , label = Variable(img0), Variable(img1), Variable(label)
+		scheduler.step()
+		for i, data in enumerate(train_dataloader,0):
+			img0, img1 , label = data
+			if isCuda:
+				img0, img1 , label = Variable(img0).cuda(), Variable(img1).cuda() , Variable(label).cuda()
+			else:
+				img0, img1 , label = Variable(img0), Variable(img1), Variable(label)
 
-	        output1,output2 = net(img0,img1)
-	        optimizer.zero_grad()
-	        loss_contrastive = criterion(output1,output2,label)
-	        loss_contrastive.backward()
-	        optimizer.step()
-	        if i %10 == 0 :
-	            print("Epoch number {}\n Current loss {}\n".format(epoch,loss_contrastive.data[0]))
-	            iteration_number +=10
-	            counter.append(iteration_number)
-	            loss_history.append(loss_contrastive.data[0])
+			output1,output2 = net(img0,img1)
+			optimizer.zero_grad()
+			loss_contrastive = criterion(output1,output2,label)
+			loss_contrastive.backward()
+			optimizer.step()
+			if i %10 == 0 :
+				print("Epoch number {}\n Current loss {}\n".format(epoch,loss_contrastive.data[0]))
+				iteration_number +=10
+				counter.append(iteration_number)
+				loss_history.append(loss_contrastive.data[0])
 	#show_plot(counter,loss_history)
 
 	print('save model')
@@ -306,7 +309,7 @@ if args.action == "test":
 
 	folder_dataset_test = dset.ImageFolder(root=Config.testing_dir)
 	siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset_test,
-	                                        transform=transforms.Compose([transforms.Scale((100,100)),
+	                                        transform=transforms.Compose([transforms.Resize((100,100)), # no rot this time
 	                                                                      transforms.ToTensor()
 	                                                                      ])
 	                                       ,should_invert=False)
