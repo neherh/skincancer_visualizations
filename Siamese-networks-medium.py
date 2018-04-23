@@ -8,6 +8,9 @@
 
 
 '''TO DO
+    - must create new dataloader that outputs name and isn't random
+    - modify test to save vector values in csv file
+    - modify test to 
     - log accuracy, precision, recall(sensitivity), specificity  and whether comparison was malignant or benign and image names for test images: see https://towardsdatascience.com/pytorch-tutorial-distilled-95ce8781a89c
         - user logger and visdom
     - add visualization tools as suggested in by 'distilled' webstite and pytorch in review (pick one):
@@ -55,6 +58,12 @@ import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
 
+from functools import partial
+import pickle
+
+import sys
+
+
 import argparse
 
 # command line to get required actions
@@ -101,7 +110,8 @@ def save_checkpoint(state, is_final = False, filename = 'checkpoint.pth.tar'):
 
 class Config():
     training_dir =  "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
-    testing_dir =   "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" # "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
+    # testing_dir =   "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" # "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
+    testing_dir = "/home/vidavilane/Documents/datasets/cancer_similarity_data_cropped/test_set_cropped"
     train_batch_size =  1 #64
     train_number_epochs = 40 #d100
 
@@ -110,10 +120,11 @@ class Config():
 # This dataset generates a pair of images. 0 for geniune pair and 1 for imposter pair
 class SiameseNetworkDataset(Dataset):
     
-    def __init__(self,imageFolderDataset,transform=None,should_invert=True):
+    def __init__(self,imageFolderDataset,transform=None,should_invert=True, randomize = True):
         self.imageFolderDataset = imageFolderDataset    
         self.transform = transform
         self.should_invert = should_invert
+        self.randomize = randomize
         
     def __getitem__(self,index):
         img0_tuple = random.choice(self.imageFolderDataset.imgs)
@@ -253,6 +264,10 @@ class ContrastiveLoss(torch.nn.Module):
 
         return loss_contrastive
 
+def checkpoint(epoch):
+    model_out_path = "model_epoch_{}.pth".format(epoch)
+    torch.save(model, model_out_path)
+    print("Checkpoint saved to {}".format(model_out_path))
 
 # ## Training Time!
 if args.action == "train":
@@ -277,6 +292,7 @@ if args.action == "train":
 	iteration_number= 0
 
 
+	counter = 0
 	for epoch in range(0,Config.train_number_epochs):
 		scheduler.step()
 		for i, data in enumerate(train_dataloader,0):
@@ -296,75 +312,130 @@ if args.action == "train":
 				iteration_number +=10
 				counter.append(iteration_number)
 				loss_history.append(loss_contrastive.data[0])
-	#show_plot(counter,loss_history)
 
-	print('save model')
-	torch.save(net,'final_training.pt')
+		 # save model every 5 epochs
+	    counter += 1
+	    # print(counter)
+	    if counter == 5 or epoch == opt.nEpochs:
+	        checkpoint(epoch)
+	        counter = 0
+
+
+
+	# #show_plot(counter,loss_history)
+
+	# print('save model')
+	# torch.save(net,'final_training.pt')
 
 
 # ## Some simple testing
 if args.action == "test":
-	net = torch.load('final_training.pt')
+    print('===> Loading model, popping top, and data')
+
+	# net = torch.load('final_training.pt')
 	# The last 3 subjects were held out from the training, and will be used to test. The Distance between each image pair denotes the degree of similarity the model found between the two images. Less means it found more similar, while higher values indicate it found them to be dissimilar.
 
-	folder_dataset_test = dset.ImageFolder(root=Config.testing_dir)
-	siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset_test,
-	                                        transform=transforms.Compose([transforms.Resize((100,100)), # no rot this time
-	                                                                      transforms.ToTensor()
-	                                                                      ])
-	                                       ,should_invert=False)
+    folder_dataset_test = dset.ImageFolder(root=Config.testing_dir, transform = transforms.Compose([transforms.Resize((100,100)),transforms.ToTensor()]))
+	# siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset_test,
+	#                                         transform=transforms.Compose([transforms.Resize((100,100)), # no rot this time
+	#                                                                       transforms.ToTensor()
+	#                                                                       ])
+	#                                        ,should_invert=False)
 
-	test_dataloader = DataLoader(siamese_dataset,num_workers=6,batch_size=1,shuffle=True)
-	dataiter = iter(test_dataloader)
-	x0,_,_ = next(dataiter)
+	# test_dataloader = DataLoader(siamese_dataset,num_workers=6,batch_size=1,shuffle=True)
+	# dataiter = iter(test_dataloader)
+	# x0,_,_ = next(dataiter)
 
-	for i in range(5):
-	    _,x1,label2 = next(dataiter)
-	    concatenated = torch.cat((x0,x1),0)
+	# for i in range(5):
+	#     _,x1,label2 = next(dataiter)
+	#     concatenated = torch.cat((x0,x1),0)
 
-	    if isCuda:
-	    	output1,output2 = net(Variable(x0).cuda(),Variable(x1).cuda())
-	    else:
-	    	output1,output2 = net(Variable(x0),Variable(x1))
+	#     if isCuda:
+	#     	output1,output2 = net(Variable(x0).cuda(),Variable(x1).cuda())
+	#     else:
+	#     	output1,output2 = net(Variable(x0),Variable(x1))
 
-	    euclidean_distance = F.pairwise_distance(output1, output2)
+	#     euclidean_distance = F.pairwise_distance(output1, output2)
 
-	    if label2[0][0] == 0:
-	        val = 'dissimilar'
-	    else:
-	        val = 'similar'
-	    imshow(torchvision.utils.make_grid(concatenated),'Dissimilarity: {:.2f}'.format(euclidean_distance.cpu().data.numpy()[0][0]), 'moles are ' + val)
+	#     if label2[0][0] == 0:
+	#         val = 'dissimilar'
+	#     else:
+	#         val = 'similar'
+	#     imshow(torchvision.utils.make_grid(concatenated),'Dissimilarity: {:.2f}'.format(euclidean_distance.cpu().data.numpy()[0][0]), 'moles are ' + val)
+
+    test_dataloader = DataLoader(folder_dataset_test,num_workers=6,batch_size=1,shuffle=False)
 
 
 
 	# load new model, pop top, run through image, show image
-	print('loading model, popping top, running through img, showing image')
-	pretrained_model = torch.load('final_training.pt')        # load model
+	# print('loading model, popping top, running through img, showing image')
+
+
+    # if imported model that was trained using python (not python3)
+    if sys.version_info[0] < 3:
+        pretrained_model = torch.load('/home/vidavilane/Documents/ml_training/cancer_similarity/iteration1.pt')        # load model
+        print('in version 2 of python, encoding remains unchanged (assumes trained using python')
+
+    else:
+        print("in version 3 of python, changing encoding to latin (assumes trained using python")
+        pickle.load = partial(pickle.load, encoding="latin1")
+        pickle.Unpickler = partial(pickle.Unpickler, encoding="latin1")
+
+        pretrained_model = torch.load('/home/vidavilane/Documents/ml_training/cancer_similarity/iteration1.pt', map_location=lambda storage, loc: storage, pickle_module=pickle)        # load model
+    
+
 
 	# remove fully connected layers
-	removed = list(pretrained_model.children())[:-1]
-	pretrained_model = torch.nn.Sequential(*removed)
+    # removed = list(pretrained_model.children())[:-1]
+    # pretrained_model = torch.nn.Sequential(*removed)
 	# print(list(pretrained_model.children()))
 
-	# generate output
-	if isCuda:
-		output_final = pretrained_model.forward(Variable(x1).cuda())
-	else:
-		output_final = pretrained_model.forward(Variable(x1))
-	# output_final.norm()
-	npOut = output_final.cpu().data.numpy()
-	# npOut.reshape((1,100,100,1))
-	# npOut = npOut[0]
-	# npOut = npOut[0][0]
-	print(type(npOut))
-	print(npOut.size)
-	print(npOut[0][0].ndim)
-	npOut *= 255.0/npOut.max()
-	imgOut = Image.fromarray(npOut[0][0],'L')
-	imgOut.save('my.png')
-	imgOut.show()
-	# normOut = normalize(npOut[:,np.newaxis], axis = 0).ravel()
-	# print(normout)
-	# print(len(output_final))
-	# print(type(output_final))
-	# print(output_final)
+
+    # open file
+    file = open('test.csv','ab')
+
+    print("===> testing the data")
+    for batch in test_dataloader:
+        x, target = Variable(batch[0]), Variable(batch[1])
+
+
+    	# generate output
+        if isCuda:
+        	output_final = pretrained_model.forward(x.cuda())
+        else:
+        	output_final = pretrained_model.forward_once(x)
+
+        npOut = output_final.cpu().data.numpy()
+
+        # save to csv file for visualization later
+        npOut_csv = npOut.flatten()
+        npOut_csv = np.insert(npOut_csv,0,target.data[0])
+        npOut_csv = np.reshape(npOut_csv,(1,npOut_csv.size))
+        np.savetxt(file,npOut_csv, delimiter = ",")
+
+
+
+
+
+        # print(str(target.data[0]))
+
+        # file = open('test.csv', 'w')
+        # file.write(target.data[0])
+        # file.close()
+
+        # print(type(npOut))
+        # print(npOut.size)
+        # print(npOut[0][0].ndim)
+        # print(target)
+
+
+        # print(test_dataloader.getitem(idx))
+
+        # save to image 
+        # npOut *= 255.0/npOut.max()
+        # imgOut = Image.fromarray(npOut[0][0],'L')
+        # imgOut.save('my.png')
+        # imgOut.show()
+
+
+    
