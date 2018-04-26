@@ -109,11 +109,11 @@ def save_checkpoint(state, is_final = False, filename = 'checkpoint.pth.tar'):
 # A simple class to manage configuration
 
 class Config():
-    training_dir =  "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
+    training_dir =  "/home/neherh/train_set_cropped" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
     # testing_dir =   "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" # "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
-    testing_dir = "/home/vidavilane/Documents/datasets/cancer_similarity_data_cropped/test_set_cropped"
-    train_batch_size =  1 #64
-    train_number_epochs = 40 #d100
+    testing_dir = "/home/neherh/test_set_cropped"
+    train_batch_size =  12 #64
+    train_number_epochs = 100 #d100
 
 
 # ## Custom Dataset Class
@@ -197,27 +197,27 @@ class SiameseNetwork(nn.Module):
         super(SiameseNetwork, self).__init__()
         self.cnn1 = nn.Sequential(
             nn.ReflectionPad2d(1),
-            nn.Conv2d(3, 4, kernel_size=3), # 1x100x100 to 4x100x100
+            nn.Conv2d(3, 32, kernel_size=3), # 1x100x100 to 4x100x100
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(4),
+            nn.BatchNorm2d(32),
             
             nn.ReflectionPad2d(1),
-            nn.Conv2d(4, 8, kernel_size=3), # 4x100x100 to 8x100x100
+            nn.Conv2d(32, 64, kernel_size=3), # 4x100x100 to 8x100x100
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(8),
+            nn.BatchNorm2d(64),
 
             nn.ReflectionPad2d(1),
-            nn.Conv2d(8, 8, kernel_size=3), # 8x100x100 to 8x100x100
+            nn.Conv2d(64, 64, kernel_size=3), # 8x100x100 to 8x100x100
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(8),
+            nn.BatchNorm2d(64),
 
             nn.ReflectionPad2d(1),
-            nn.Conv2d(8, 4, kernel_size=3), # 8x100x100 to 4x100x100
+            nn.Conv2d(64, 32, kernel_size=3), # 8x100x100 to 4x100x100
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(4),
+            nn.BatchNorm2d(32),
 
             nn.ReflectionPad2d(1),
-            nn.Conv2d(4, 1, kernel_size=3), # 4x100x100 to 1x100x100
+            nn.Conv2d(32, 1, kernel_size=3), # 4x100x100 to 1x100x100
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(1),
 
@@ -225,13 +225,13 @@ class SiameseNetwork(nn.Module):
         )
 
         self.fc1 = nn.Sequential(
-            nn.Linear(1*25*25, 500),        # 1x25x25 (625) to 500
+            nn.Linear(1*25*25, 400),        # 1x25x25 (625) to 500
             nn.ReLU(inplace=True),
 
-            nn.Linear(500, 500),            # 500 to 500
+            nn.Linear(400,175),            # 500 to 500
             nn.ReLU(inplace=True),
 
-            nn.Linear(500, 5))              # 500 to 5
+            nn.Linear(175, 5))              # 500 to 5
 
     def forward_once(self, x):
         output = self.cnn1(x)
@@ -266,7 +266,7 @@ class ContrastiveLoss(torch.nn.Module):
 
 def checkpoint(epoch):
     model_out_path = "model_epoch_{}.pth".format(epoch)
-    torch.save(model, model_out_path)
+    torch.save(net, model_out_path)
     print("Checkpoint saved to {}".format(model_out_path))
 
 # ## Training Time!
@@ -292,7 +292,7 @@ if args.action == "train":
 	iteration_number= 0
 
 
-	counter = 0
+	cnt = 0
 	for epoch in range(0,Config.train_number_epochs):
 		scheduler.step()
 		for i, data in enumerate(train_dataloader,0):
@@ -312,13 +312,13 @@ if args.action == "train":
 				iteration_number +=10
 				counter.append(iteration_number)
 				loss_history.append(loss_contrastive.data[0])
-
-		 # save model every 5 epochs
-	    counter += 1
-	    # print(counter)
-	    if counter == 5 or epoch == opt.nEpochs:
-	        checkpoint(epoch)
-	        counter = 0
+        
+                # save model every 5 epochs
+                cnt += 1
+                # print(counter)
+                if cnt == 1 or epoch == Config.train_batch_size:
+                    checkpoint(epoch)
+                    cnt = 0
 
 
 
