@@ -1,0 +1,11 @@
+row (top to bottom):
+/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set/benign/ISIC_0000015.jpg
+/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set/benign/ISIC_0000021.jpg
+/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set/malignant/ISIC_0000164.jpg
+/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set/malignant/ISIC_0000031.jpg
+
+col (left to right:
+/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set/benign/ISIC_0000135.jpg
+/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set/benign/ISIC_0000189.jpg
+/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set/malignant/ISIC_0000165.jpg
+/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set/malignant/ISIC_0000002.jpg

@@ -74,9 +74,10 @@ args = parser.parse_args()
 
 print(args.action)
 
-
+#############################################
 # global variables
 isCuda = False
+#############################################
 
 # ## Helper functions
 # Set of helper functions
@@ -109,9 +110,13 @@ def save_checkpoint(state, is_final = False, filename = 'checkpoint.pth.tar'):
 # A simple class to manage configuration
 
 class Config():
-    training_dir =  "/home/neherh/train_set_cropped" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
-    # testing_dir =   "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" # "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
-    testing_dir = "/home/neherh/test_set_cropped"
+    ################ -torchz- #######################
+    # training_dir =  "/home/neherh/train_set_cropped"
+    # testing_dir = "/home/neherh/test_set_cropped" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
+    
+    ################ -vidavilane- #######################
+    training_dir =  "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set"
+    testing_dir =   "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" # "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
     train_batch_size =  12 #64
     train_number_epochs = 100 #d100
 
@@ -158,7 +163,6 @@ class SiameseNetworkDataset(Dataset):
         return len(self.imageFolderDataset.imgs)
 
 
-# ## Using Image Folder Dataset
 
 folder_dataset = dset.ImageFolder(root=Config.training_dir)
 
@@ -295,6 +299,7 @@ if args.action == "train":
 	cnt = 0
 	for epoch in range(0,Config.train_number_epochs):
 		scheduler.step()
+
 		for i, data in enumerate(train_dataloader,0):
 			img0, img1 , label = data
 			if isCuda:
@@ -312,14 +317,13 @@ if args.action == "train":
 				iteration_number +=10
 				counter.append(iteration_number)
 				loss_history.append(loss_contrastive.data[0])
-        
+   
                 # save model every 5 epochs
-                cnt += 1
-                # print(counter)
-                if cnt == 1 or epoch == Config.train_batch_size:
-                    checkpoint(epoch)
-                    cnt = 0
+		cnt+=1
 
+		if cnt ==1 or epoch == Config.train_batch_size:
+			checkpoint(epoch)
+			cnt = 0
 
 
 	# #show_plot(counter,loss_history)
@@ -332,37 +336,8 @@ if args.action == "train":
 if args.action == "test":
     print('===> Loading model, popping top, and data')
 
-	# net = torch.load('final_training.pt')
-	# The last 3 subjects were held out from the training, and will be used to test. The Distance between each image pair denotes the degree of similarity the model found between the two images. Less means it found more similar, while higher values indicate it found them to be dissimilar.
 
     folder_dataset_test = dset.ImageFolder(root=Config.testing_dir, transform = transforms.Compose([transforms.Resize((100,100)),transforms.ToTensor()]))
-	# siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset_test,
-	#                                         transform=transforms.Compose([transforms.Resize((100,100)), # no rot this time
-	#                                                                       transforms.ToTensor()
-	#                                                                       ])
-	#                                        ,should_invert=False)
-
-	# test_dataloader = DataLoader(siamese_dataset,num_workers=6,batch_size=1,shuffle=True)
-	# dataiter = iter(test_dataloader)
-	# x0,_,_ = next(dataiter)
-
-	# for i in range(5):
-	#     _,x1,label2 = next(dataiter)
-	#     concatenated = torch.cat((x0,x1),0)
-
-	#     if isCuda:
-	#     	output1,output2 = net(Variable(x0).cuda(),Variable(x1).cuda())
-	#     else:
-	#     	output1,output2 = net(Variable(x0),Variable(x1))
-
-	#     euclidean_distance = F.pairwise_distance(output1, output2)
-
-	#     if label2[0][0] == 0:
-	#         val = 'dissimilar'
-	#     else:
-	#         val = 'similar'
-	#     imshow(torchvision.utils.make_grid(concatenated),'Dissimilarity: {:.2f}'.format(euclidean_distance.cpu().data.numpy()[0][0]), 'moles are ' + val)
-
     test_dataloader = DataLoader(folder_dataset_test,num_workers=6,batch_size=1,shuffle=False)
 
 
@@ -414,28 +389,113 @@ if args.action == "test":
         np.savetxt(file,npOut_csv, delimiter = ",")
 
 
+# Get Confusion Matrix
+if args.action == "test_confusion":
+    print('===> creating datasets')
 
-
-
-        # print(str(target.data[0]))
-
-        # file = open('test.csv', 'w')
-        # file.write(target.data[0])
-        # file.close()
-
-        # print(type(npOut))
-        # print(npOut.size)
-        # print(npOut[0][0].ndim)
-        # print(target)
-
-
-        # print(test_dataloader.getitem(idx))
-
-        # save to image 
-        # npOut *= 255.0/npOut.max()
-        # imgOut = Image.fromarray(npOut[0][0],'L')
-        # imgOut.save('my.png')
-        # imgOut.show()
-
-
+    folder_dataset_test = dset.ImageFolder(root=Config.testing_dir, transform = transforms.Compose([transforms.Resize((100,100)),transforms.ToTensor()]))
     
+    test_length = len(folder_dataset_test.imgs)
+
+    count_ben = 0
+    count_mal = 0
+    mal_set = set()
+    ben_set = set()
+
+    # get 5 unique random samples of benign and malignant
+    while True:
+        img_tuple = random.choice(folder_dataset_test.imgs)
+
+        if img_tuple[1] == 0:
+            if(count_ben < 4):
+                ben_set.add(img_tuple)
+                if(len(ben_set) > count_ben):
+                    count_ben += 1
+
+        elif img_tuple[1] == 1:
+            if(count_mal < 4):
+                mal_set.add(img_tuple)
+                if(len(mal_set) > count_mal):
+                    count_mal += 1
+
+        if len(ben_set) == 4 and len(mal_set) == 4:
+            break;
+
+    # convert to list for ease of access
+    ben_list = list(ben_set)
+    mal_list = list(mal_set)
+
+    # create row set of images
+    row_list = []
+    row_list.append(ben_list[0][0])
+    row_list.append(ben_list[1][0])
+    row_list.append(mal_list[0][0])
+    row_list.append(mal_list[1][0])
+
+    # create column set of images
+    col_list = []
+    col_list.append(ben_list[2][0])
+    col_list.append(ben_list[3][0])
+    col_list.append(mal_list[2][0])
+    col_list.append(mal_list[3][0])
+
+
+    print('===> Loading model')
+    # if imported model that was trained using python (not python3)
+    if sys.version_info[0] < 3:
+        pretrained_model = torch.load('/home/vidavilane/Documents/ml_training/cancer_similarity/iteration1.pt')        # load model
+        print('in version 2 of python, encoding remains unchanged (assumes trained using python')
+
+    else:
+        print("in version 3 of python, changing encoding to latin (assumes trained using python")
+        pickle.load = partial(pickle.load, encoding="latin1")
+        pickle.Unpickler = partial(pickle.Unpickler, encoding="latin1")
+
+        pretrained_model = torch.load('/home/vidavilane/Documents/repos/cancer_similarity/trained_models/test0/model_epoch_0.pth', map_location=lambda storage, loc: storage, pickle_module=pickle)        # load model
+    
+
+    print('===> getting matrix')
+    matrix = np.zeros(shape = (4,4))
+    for i in range(0,len(row_list)):
+        for j in range(0,len(col_list)):
+
+            # get images
+            x0 = Image.open(row_list[i])
+            x1 = Image.open(col_list[j])
+
+            # transform
+            img_transform=transforms.Compose([transforms.Resize((100,100)),
+                transforms.ToTensor()
+                ])
+
+            # forward pass to test (put to variable, add extra dimension and convert to tensor etc)
+            if isCuda:
+                output1,output2 = pretrained_model(Variable(img_transform(x0).unsqueeze(0)).cuda(),Variable(img_transform(x1).unsqueeze(0)).cuda())
+            else:
+                output1,output2 = pretrained_model(Variable(img_transform(x0).unsqueeze(0)),Variable(img_transform(x1).unsqueeze(0)))
+
+            # eval similarity and store
+            euclidean_distance = F.pairwise_distance(output1, output2)
+            matrix[i][j] = euclidean_distance.cpu().data.numpy()
+
+
+    print('===> save to file (csv)')
+
+    # save similarities in csv
+    file = open('results/confusion_mat/test_confMat.csv','wb')
+    np.savetxt(file,matrix, delimiter = ",")
+    file.close()
+
+    # save names in txt file
+    file = open('results/confusion_mat/test_confMat.txt','w')
+    file.write('row (top to bottom):\n')
+    file.write(row_list[0] + '\n')
+    file.write(row_list[1] + '\n')
+    file.write(row_list[2] + '\n')
+    file.write(row_list[3] + '\n\n')
+    file.write('col (left to right:\n')
+    file.write(col_list[0] + '\n')
+    file.write(col_list[1] + '\n')
+    file.write(col_list[2] + '\n')
+    file.write(col_list[3] + '\n')
+    file.close()
