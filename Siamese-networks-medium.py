@@ -63,6 +63,9 @@ import pickle
 
 import sys
 
+from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import average_precision_score
+
 
 import argparse
 
@@ -499,3 +502,113 @@ if args.action == "test_confusion":
     file.write(col_list[2] + '\n')
     file.write(col_list[3] + '\n')
     file.close()
+
+# Get Precision, Recall and AP
+if args.action == "test_PR":
+
+    # varying Variables:
+    threshold = 1 # value to detemine what is same class (<=1) and what is wrong (>1)
+
+    print('===> Loading model')
+    # if imported model that was trained using python (not python3)
+    if sys.version_info[0] < 3:
+        pretrained_model = torch.load('/home/vidavilane/Documents/ml_training/cancer_similarity/iteration1.pt')        # load model
+        print('in version 2 of python, encoding remains unchanged (assumes trained using python')
+
+    else:
+        print("in version 3 of python, changing encoding to latin (assumes trained using python")
+        pickle.load = partial(pickle.load, encoding="latin1")
+        pickle.Unpickler = partial(pickle.Unpickler, encoding="latin1")
+
+        pretrained_model = torch.load('/home/vidavilane/Documents/repos/cancer_similarity/trained_models/test0/model_epoch_0.pth', map_location=lambda storage, loc: storage, pickle_module=pickle)        # load model
+    
+
+    print('===> Loading dataset')
+
+    folder_dataset_test = dset.ImageFolder(root=Config.testing_dir, transform = transforms.Compose([transforms.Resize((100,100)),transforms.ToTensor()]))
+    
+    test_length = len(folder_dataset_test.imgs)
+    # test_length = 3
+    print(test_length)
+  
+    preds  = np.zeros(shape = (test_length,test_length))
+    target = np.zeros(shape = (test_length,test_length))
+    # cycle through one 'class'
+    for i in range(0,test_length):
+        for j in range(0,test_length):
+
+
+            # get images
+            x0 = Image.open(folder_dataset_test.imgs[i][0])###################
+            x1 = Image.open(folder_dataset_test.imgs[j][0])
+
+            # transform images
+            img_transform=transforms.Compose([transforms.Resize((100,100)),
+                transforms.ToTensor()
+                ])
+
+            #forward pass to test (put to variable, add extra dimension and convert to tensor etc)
+            if isCuda:
+                output1,output2 = pretrained_model(Variable(img_transform(x0).unsqueeze(0)).cuda(),Variable(img_transform(x1).unsqueeze(0)).cuda())
+            else:
+                output1,output2 = pretrained_model(Variable(img_transform(x0).unsqueeze(0)),Variable(img_transform(x1).unsqueeze(0)))
+
+            #eval similarity and store in dissimalarity
+            euclidean_distance = F.pairwise_distance(output1, output2)
+            preds[j,i] = euclidean_distance.cpu().data.numpy() ######################
+            target[j,i] = folder_dataset_test.imgs[j][1]
+        # print(folder_dataset_test.imgs[j][1])
+        # store target value 
+    # print(target.size)
+
+    # for i in range(0,3):
+
+    # print(target[:,0])
+
+    # For each class
+
+    # print(target)
+    # print(preds)
+
+    # normalize preds in current setup
+    # preds = preds/preds.max(axis = 0)
+
+    precision = dict()
+    recall = dict()
+    average_precision = dict()
+    for i in range(test_length):
+        print(i)
+        precision[i], recall[i], _ = precision_recall_curve(target[:, i],
+                                                        preds[:, i])
+
+
+    # print(precision)
+    # print(recall)
+        average_precision[i] = average_precision_score(target[:, i], preds[:, i])
+
+    # A "micro-average": quantifying score on all classes jointly
+    precision["micro"], recall["micro"], _ = precision_recall_curve(target.ravel(),
+        preds.ravel())
+    average_precision["micro"] = average_precision_score(target, preds,
+                                                        average="micro")
+    print('Average precision score, micro-averaged over all classes: {0:0.2f}'
+        .format(average_precision["micro"]))
+
+
+
+    plt.figure()
+    plt.step(recall['micro'], precision['micro'], color='b', alpha=0.2,
+             where='post')
+    plt.fill_between(recall["micro"], precision["micro"], step='post', alpha=0.2,
+                     color='b')
+
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.ylim([0.0, 1.05])
+    plt.xlim([0.0, 1.0])
+    plt.title(
+        'Average precision score, micro-averaged over all classes: AP={0:0.2f}'
+        .format(average_precision["micro"]))
+
+    plt.savefig('fig.jpg')
+    # plt.show()
