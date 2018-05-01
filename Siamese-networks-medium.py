@@ -40,6 +40,9 @@
 '''
 
 #Imports
+import matplotlib		# needed for server side
+matplotlib.use('Agg')	# needed for server side
+
 import torchvision
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
@@ -79,7 +82,7 @@ print(args.action)
 
 #############################################
 # global variables
-isCuda = False
+isCuda = True
 #############################################
 
 # ## Helper functions
@@ -114,12 +117,12 @@ def save_checkpoint(state, is_final = False, filename = 'checkpoint.pth.tar'):
 
 class Config():
     ################ -torchz- #######################
-    # training_dir =  "/home/neherh/train_set_cropped"
-    # testing_dir = "/home/neherh/test_set_cropped" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
+    training_dir =  "/home/neherh/train_set_cropped"
+    testing_dir = "/home/neherh/test_set_cropped" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
     
     ################ -vidavilane- #######################
-    training_dir =  "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set"
-    testing_dir =   "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" # "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
+    # training_dir =  "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set"
+    # testing_dir =   "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/test_sub_set" # "/home/jzelek/Documents/datasets/SkinData/test_sub_set/"
     train_batch_size =  12 #64
     train_number_epochs = 100 #d100
 
@@ -512,15 +515,17 @@ if args.action == "test_PR":
     print('===> Loading model')
     # if imported model that was trained using python (not python3)
     if sys.version_info[0] < 3:
-        pretrained_model = torch.load('/home/vidavilane/Documents/ml_training/cancer_similarity/iteration1.pt')        # load model
+        #pretrained_model = torch.load('/home/vidavilane/Documents/ml_training/cancer_similarity/iteration1.pt')        # load model
+	pretrained_model = torch.load('/home/neherh/cancer_similarity/trained_models/test0/model_epoch_99.pth')        # load model
         print('in version 2 of python, encoding remains unchanged (assumes trained using python')
 
     else:
         print("in version 3 of python, changing encoding to latin (assumes trained using python")
         pickle.load = partial(pickle.load, encoding="latin1")
         pickle.Unpickler = partial(pickle.Unpickler, encoding="latin1")
-
-        pretrained_model = torch.load('/home/vidavilane/Documents/repos/cancer_similarity/trained_models/test0/model_epoch_0.pth', map_location=lambda storage, loc: storage, pickle_module=pickle)        # load model
+	
+	pretrained_model = torch.load('/home/neherh/cancer_similarity/trained_models/test0/model_epoch_99.pth',map_location=lambda storage, loc: storage, pickle_module=pickle)
+        # pretrained_model = torch.load('/home/vidavilane/Documents/repos/cancer_similarity/trained_models/test0/model_epoch_0.pth', map_location=lambda storage, loc: storage, pickle_module=pickle)        # load model
     
 
     print('===> Loading dataset')
@@ -530,16 +535,60 @@ if args.action == "test_PR":
     test_length = len(folder_dataset_test.imgs)
     # test_length = 3
     print(test_length)
+
+
+    count_ben = 0
+    count_mal = 0
+    mal_set = set()
+    ben_set = set()
+
+    # get 5 unique random samples of benign and malignant
+    while True:
+        img_tuple = random.choice(folder_dataset_test.imgs)
+
+        if img_tuple[1] == 0:
+            if(count_ben < 5):
+                ben_set.add(img_tuple)
+                if(len(ben_set) > count_ben):
+                    count_ben += 1
+
+        elif img_tuple[1] == 1:
+            if(count_mal < 5):
+                mal_set.add(img_tuple)
+                if(len(mal_set) > count_mal):
+                    count_mal += 1
+
+        if len(ben_set) == 5 and len(mal_set) == 5:
+            break;
+
+    # convert to list for ease of access
+    ben_list = list(ben_set)
+    mal_list = list(mal_set)
+
+    # create row set of images
+    img_list = []
+    img_list.append(ben_list[0])
+    img_list.append(mal_list[0])
+    img_list.append(ben_list[1])
+    img_list.append(mal_list[1])
+    img_list.append(ben_list[2])
+    img_list.append(mal_list[2])
+    img_list.append(ben_list[3])
+    img_list.append(mal_list[3])
+    img_list.append(ben_list[4])
+    img_list.append(mal_list[4])
+
   
-    preds  = np.zeros(shape = (test_length,test_length))
-    target = np.zeros(shape = (test_length,test_length))
+    preds  = np.zeros(shape = (test_length,len(img_list)))
+    target = np.zeros(shape = (test_length,len(img_list)))
     # cycle through one 'class'
-    for i in range(0,test_length):
+    for i in range(0,len(img_list)):
+    	print(i+1)
         for j in range(0,test_length):
 
 
             # get images
-            x0 = Image.open(folder_dataset_test.imgs[i][0])###################
+            x0 = Image.open(img_list[i][0])###################
             x1 = Image.open(folder_dataset_test.imgs[j][0])
 
             # transform images
@@ -549,6 +598,7 @@ if args.action == "test_PR":
 
             #forward pass to test (put to variable, add extra dimension and convert to tensor etc)
             if isCuda:
+		pretrained_model.cuda()
                 output1,output2 = pretrained_model(Variable(img_transform(x0).unsqueeze(0)).cuda(),Variable(img_transform(x1).unsqueeze(0)).cuda())
             else:
                 output1,output2 = pretrained_model(Variable(img_transform(x0).unsqueeze(0)),Variable(img_transform(x1).unsqueeze(0)))
@@ -557,35 +607,18 @@ if args.action == "test_PR":
             euclidean_distance = F.pairwise_distance(output1, output2)
             preds[j,i] = euclidean_distance.cpu().data.numpy() ######################
             target[j,i] = folder_dataset_test.imgs[j][1]
-        # print(folder_dataset_test.imgs[j][1])
-        # store target value 
-    # print(target.size)
-
-    # for i in range(0,3):
-
-    # print(target[:,0])
-
-    # For each class
-
-    # print(target)
-    # print(preds)
-
-    # normalize preds in current setup
-    # preds = preds/preds.max(axis = 0)
 
     precision = dict()
     recall = dict()
     average_precision = dict()
-    for i in range(test_length):
-        print(i)
+    print('===> PR Curve and AP')
+    for i in range(len(img_list)):
+        # print(i)
         precision[i], recall[i], _ = precision_recall_curve(target[:, i],
                                                         preds[:, i])
-
-
-    # print(precision)
-    # print(recall)
         average_precision[i] = average_precision_score(target[:, i], preds[:, i])
 
+    print('===> mAP')
     # A "micro-average": quantifying score on all classes jointly
     precision["micro"], recall["micro"], _ = precision_recall_curve(target.ravel(),
         preds.ravel())
@@ -595,7 +628,7 @@ if args.action == "test_PR":
         .format(average_precision["micro"]))
 
 
-
+    print('===> Plot')
     plt.figure()
     plt.step(recall['micro'], precision['micro'], color='b', alpha=0.2,
              where='post')
@@ -610,5 +643,28 @@ if args.action == "test_PR":
         'Average precision score, micro-averaged over all classes: AP={0:0.2f}'
         .format(average_precision["micro"]))
 
-    plt.savefig('fig.jpg')
-    # plt.show()
+    plt.savefig('fig.png')
+
+
+
+
+
+
+
+    ##################
+    print('===> re-calculate mAP, started sorting')
+    val = np.array([0,1,2,3,4,5,6,7,8,9])
+    idx_preds = np.argsort(preds, axis=0)
+
+    new_preds = preds[idx_preds[0:10][:],val]
+    new_target = target[idx_preds[0:10][:],val]
+
+    print('===> re-calculate mAP from 10 rand samples, calc mAP')
+    precision = dict()
+    recall = dict()
+    average_precision = dict()
+   
+    average_precision["micro"] = average_precision_score(new_target, new_preds,
+                                                        average="micro")
+    print('Average precision score, micro-averaged over all classes: {0:0.2f}'
+        .format(average_precision["micro"]))
