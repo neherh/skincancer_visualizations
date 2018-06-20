@@ -117,8 +117,8 @@ def save_checkpoint(state, is_final = False, filename = 'checkpoint.pth.tar'):
 
 class Config():
     ################ -torchz- #######################
-    training_dir =  "/home/neherh/train_set_cropped"
-    testing_dir = "/home/neherh/test_set_cropped" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
+    training_dir =  "/home/neherh/train_set_cropped2"
+    testing_dir = "/home/neherh/test_set_cropped2" # "/home/jzelek/Documents/datasets/SkinData/train_sub_set/"
     
     ################ -vidavilane- #######################
     # training_dir =  "/home/vidavilane/Documents/repos/cancer_similarity/SkinData/train_sub_set"
@@ -230,16 +230,18 @@ class SiameseNetwork(nn.Module):
             nn.Conv2d(32, 1, kernel_size=3), # 4x100x100 to 1x100x100
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(1),
+            # nn.Sigmoid(),
 
-            nn.MaxPool2d(4)                 # 1x100x100 to 1x25x25
+            # nn.MaxPool2d(4)                 # 1x100x100 to 1x25x25
         )
 
         self.fc1 = nn.Sequential(
-            nn.Linear(1*25*25, 400),        # 1x25x25 (625) to 500
+            nn.Linear(1*100*100, 400),        # 1x25x25 (625) to 500
             nn.ReLU(inplace=True),
 
             nn.Linear(400,175),            # 500 to 500
-            nn.ReLU(inplace=True),
+            # nn.ReLU(inplace=True),
+            nn.Sigmoid(),
 
             nn.Linear(175, 5))              # 500 to 5
 
@@ -262,7 +264,7 @@ class ContrastiveLoss(torch.nn.Module):
     Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
     """
 
-    def __init__(self, margin=2.0):
+    def __init__(self, margin=2):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
 
@@ -354,7 +356,7 @@ if args.action == "test":
 
     # if imported model that was trained using python (not python3)
     if sys.version_info[0] < 3:
-        pretrained_model = torch.load('/home/vidavilane/Documents/ml_training/cancer_similarity/iteration1.pt')        # load model
+        pretrained_model = torch.load('/home/neherh/cancer_similarity/trained_models/test2/model_epoch_99.pth')        # load model
         print('in version 2 of python, encoding remains unchanged (assumes trained using python')
 
     else:
@@ -362,13 +364,13 @@ if args.action == "test":
         pickle.load = partial(pickle.load, encoding="latin1")
         pickle.Unpickler = partial(pickle.Unpickler, encoding="latin1")
 
-        pretrained_model = torch.load('/home/vidavilane/Documents/ml_training/cancer_similarity/iteration1.pt', map_location=lambda storage, loc: storage, pickle_module=pickle)        # load model
+        pretrained_model = torch.load('/home/neherh/cancer_similarity/trained_models/test2/model_epoch_99.pth', map_location=lambda storage, loc: storage, pickle_module=pickle)        # load model
     
 
 
 	# remove fully connected layers
-    # removed = list(pretrained_model.children())[:-1]
-    # pretrained_model = torch.nn.Sequential(*removed)
+    removed = list(pretrained_model.children())[:-1]
+    pretrained_model = torch.nn.Sequential(*removed)
 	# print(list(pretrained_model.children()))
 
 
@@ -382,6 +384,7 @@ if args.action == "test":
 
     	# generate output
         if isCuda:
+        	pretrained_model.cuda()
         	output_final = pretrained_model.forward(x.cuda())
         else:
         	output_final = pretrained_model.forward_once(x)
@@ -516,7 +519,7 @@ if args.action == "test_PR":
     # if imported model that was trained using python (not python3)
     if sys.version_info[0] < 3:
         #pretrained_model = torch.load('/home/vidavilane/Documents/ml_training/cancer_similarity/iteration1.pt')        # load model
-	pretrained_model = torch.load('/home/neherh/cancer_similarity/trained_models/test0/model_epoch_99.pth')        # load model
+	pretrained_model = torch.load('/home/neherh/cancer_similarity/trained_models/test2/model_epoch_99.pth')        # load model
         print('in version 2 of python, encoding remains unchanged (assumes trained using python')
 
     else:
@@ -524,7 +527,7 @@ if args.action == "test_PR":
         pickle.load = partial(pickle.load, encoding="latin1")
         pickle.Unpickler = partial(pickle.Unpickler, encoding="latin1")
 	
-	pretrained_model = torch.load('/home/neherh/cancer_similarity/trained_models/test0/model_epoch_99.pth',map_location=lambda storage, loc: storage, pickle_module=pickle)
+	pretrained_model = torch.load('/home/neherh/cancer_similarity/trained_models/test2/model_epoch_99.pth',map_location=lambda storage, loc: storage, pickle_module=pickle)
         # pretrained_model = torch.load('/home/vidavilane/Documents/repos/cancer_similarity/trained_models/test0/model_epoch_0.pth', map_location=lambda storage, loc: storage, pickle_module=pickle)        # load model
     
 
