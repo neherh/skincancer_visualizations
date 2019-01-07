@@ -1,6 +1,6 @@
 # Cancer Similarity with Siamese Networks in Pytorch
 
-The goal of this project is to accurately determine between benign and malignant skin images and in turn encode the images into a distint map. 
+The goal of this project is to accurately determine between benign and malignant skin images and in turn encode the images into a distinct map. 
 
 This project uses pytorch. Any dataset can be used. Each class must be in its own folder. This is the same structure that PyTorch's own image folder dataset uses.
 
