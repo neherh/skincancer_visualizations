@@ -1,23 +1,38 @@
-#Imports
 import torch
 import torch.nn.functional as F
 
-
-# ## Contrastive Loss
 class ContrastiveLoss(torch.nn.Module):
-    """
-    Contrastive loss function.
-    Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
-    """
+    """Class in which the siamese dataset is created.
 
+    Note:
+        Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+
+    Args:
+        margin (int): margin or threshold to evaluate contrastive loss
+
+    Attributes:
+        margin (int): margin or threshold to evaluate contrastive loss
+
+    """
     def __init__(self, margin=2):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
 
     def forward(self, output1, output2, label):
-        euclidean_distance = F.pairwise_distance(output1, output2)
-        loss_contrastive = torch.mean((1-label) * torch.pow(euclidean_distance, 2) +
-                                      (label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2))
+        """ Overwritten function to eval loss.
 
+        Args:
+            output1 (object): first output of the siamese network
+            output2 (object): first output of the siamese network
+            label (int): label of the image
 
-        return loss_contrastive
+        Returns:
+            lossContrastive
+
+        """
+
+        euclDist = F.pairwise_distance(output1, output2)
+        lossConstrastive = torch.mean((1-label) * torch.pow(euclDist, 2) +
+            (label) * torch.pow(torch.clamp(self.margin - euclDist, min=0.0), 2))
+
+        return lossConstrastive
