@@ -7,8 +7,7 @@ from PIL import Image
 import PIL.ImageOps    
 
 class SiameseNetworkDataset(Dataset):
-    """
-    Class in which the siamese dataset is created.
+    """Class in which the siamese dataset is created.
 
     Note:
         None.
@@ -27,13 +26,13 @@ class SiameseNetworkDataset(Dataset):
 
     """
     
-    def __init__(self,imageFolderDataset,transform=None,shouldInvert=True, randomize = True):
+    def __init__(self, imageFolderDataset, transform=None, shouldInvert=True, randomize=True):
         self.imageFolderDataset = imageFolderDataset    
         self.transform = transform
         self.shouldInvert = shouldInvert
         self.randomize = randomize
         
-    def __getitem__(self,index):
+    def __getitem__(self, index):
         """Class methods are similar to regular functions.
 
         Note:
@@ -48,11 +47,9 @@ class SiameseNetworkDataset(Dataset):
         """
 
         img0Tuple = random.choice(self.imageFolderDataset.imgs)
-        #we need to make sure approx 50% of images are in the same class
-        getSameClass = random.randint(0,1) 
+        getSameClass = random.randint(0,1) # ensure approx. 50% of images are in the same class
         if getSameClass:
-            while True:
-                #keep looping till the same class image is found
+            while True: # keep looping till the same class image is found
                 img1Tuple = random.choice(self.imageFolderDataset.imgs) 
                 if img0Tuple[1]==img1Tuple[1]:
                     break
@@ -70,7 +67,7 @@ class SiameseNetworkDataset(Dataset):
             img0 = self.transform(img0)
             img1 = self.transform(img1)
         
-        return img0, img1 , torch.from_numpy(np.array([int(img1Tuple[1]!=img0Tuple[1])],dtype=np.float32))
+        return img0, img1, torch.from_numpy(np.array([int(img1Tuple[1]!=img0Tuple[1])], dtype=np.float32))
     
     def __len__(self):
         return len(self.imageFolderDataset.imgs)

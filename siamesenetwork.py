@@ -10,6 +10,7 @@ class SiameseNetwork(nn.Module):
         cnn1 (object): all convolutional layers
         fc1 (object):  all fully connected layers
     """
+
     def __init__(self):
         super(SiameseNetwork, self).__init__()
 
@@ -47,17 +48,17 @@ class SiameseNetwork(nn.Module):
             nn.Linear(40,175), 
             nn.Sigmoid(),
 
-            nn.Linear(175, 5))
-
+            nn.Linear(175, 5)
+        )
 
     def forward_once(self, x):
         """Forward inference x1.
 
         Args:
-            x (object): image tensor to be evalutated
+            x (object): image tensor to be evaluated
 
         Returns:
-            output
+            output: resultant tensor after forward pass
 
         """
 
@@ -65,7 +66,6 @@ class SiameseNetwork(nn.Module):
         output = output.view(output.size()[0], -1)
         output = self.fc1(output)
         return output
-
 
     def forward(self, input1, input2):
         """Forward inference for two image tensors.

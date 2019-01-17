@@ -27,7 +27,6 @@ Todo:
 
 """
 
-# imports
 from functools import partial
 import random
 import sys
@@ -74,10 +73,10 @@ class Config():
     """
     trainingDir =  "./skinData/train_sub_set"
     testingDir = "./skinData/test_sub_set"
-    trainBatchSize =  1 #64
-    trainNumberEpochs = 100 #d100
+    trainBatchSize =  1
+    trainNumberEpochs = 100
     saveInterval = 10
-    imageSize = 10 # 10x10
+    imageSize = 10 # hxw = 10x10, pixels
 
 
 class NotRequiredIf(click.Option):
@@ -92,6 +91,7 @@ class NotRequiredIf(click.Option):
         click.option (object): containing arg options
 
     """
+
     def __init__(self, *args, **kwargs):
         self.not_required_if = kwargs.pop('not_required_if')
         assert self.not_required_if, "'not_required_if' parameter required"
@@ -117,9 +117,15 @@ class NotRequiredIf(click.Option):
             output
 
         """
+    
         weArePresent = self.name in opts
         otherPresent = self.not_required_if in opts
 
+        '''
+        Determines if some options are not needed in the 
+        arg parsing. If desired to be ignored, it will return
+        a none value.
+        '''
         if otherPresent:
             if weArePresent:
                 raise click.UsageError(
@@ -131,12 +137,15 @@ class NotRequiredIf(click.Option):
         return super(NotRequiredIf, self).handle_parse_result(
             ctx, opts, args)
 
+
+# refer to NotRequiredIf Class for details
 @click.command()
 @click.option('-c','--cuda', type = bool, default=False)
 @click.option('--train', prompt = True, is_flag=True, cls=NotRequiredIf, not_required_if = 'test')
 @click.option('--test', prompt = True, type=click.Choice(['getCSV', 'getConf', 'getPR','']),
     cls=NotRequiredIf, not_required_if = 'train')
 @click.option('-m', '--model', prompt = True, type=str, cls=NotRequiredIf, not_required_if = 'train')
+
 def main(cuda, train, test, model):
     """main function to train and test the neural network.
 
@@ -160,10 +169,10 @@ def main(cuda, train, test, model):
     if train:
 
         def train_network():
-            """ Trains the network.
+            """Trains the network.
 
             Attr:
-                counter
+                counter:
                 criterion:
                 epoch:
                 folderDataset:
@@ -176,7 +185,6 @@ def main(cuda, train, test, model):
                 scheduler:
                 siameseDataset:
                 trainDataLoader:
-                criterion:
 
             Returns:
                 None.
@@ -184,7 +192,7 @@ def main(cuda, train, test, model):
             """
        
             def checkpoint(epoch):
-                """ checkpoint to save model
+                """checkpoint to save model
 
                 Args:
                     epoch (int): number of epoch
@@ -204,7 +212,7 @@ def main(cuda, train, test, model):
             # create dataset and dataloader
             folderDataset = dset.ImageFolder(root=Config.trainingDir)
             siameseDataset = SiameseNetworkDataset(imageFolderDataset=folderDataset,
-                transform=transforms.Compose([transforms.Resize((10,10)), transforms.RandomRotation((0,360)),
+                transform=transforms.Compose([transforms.Resize((10, 10)), transforms.RandomRotation((0, 360)),
                 transforms.ToTensor()]), shouldInvert=False)
             trainDataloader = DataLoader(siameseDataset, shuffle=True, num_workers=8,
                 batch_size=Config.trainBatchSize)
@@ -216,7 +224,7 @@ def main(cuda, train, test, model):
 
             # init training params
             criterion = ContrastiveLoss()
-            optimizer = optim.Adam(net.parameters(),lr = 0.005 )
+            optimizer = optim.Adam(net.parameters(), lr = 0.005 )
             scheduler = optim.lr_scheduler.StepLR(optimizer,step_size = 30, gamma = 0.1) 
 
             counter = []
@@ -224,25 +232,25 @@ def main(cuda, train, test, model):
             iterationNumber = 0
 
             # train model
-            for epoch in range(0,Config.trainNumberEpochs):
+            for epoch in range(0, Config.trainNumberEpochs):
                 scheduler.step()
 
-                for i, data in enumerate(trainDataloader,0):
+                for i, data in enumerate(trainDataloader, 0):
                     img0, img1 , label = data
                     if cuda:
-                        img0, img1 , label = Variable(img0).cuda(), Variable(img1).cuda() , Variable(label).cuda()
+                        img0, img1 , label = Variable(img0).cuda(), Variable(img1).cuda(), Variable(label).cuda()
                     else:
                         img0, img1 , label = Variable(img0), Variable(img1), Variable(label)
 
                     output1,output2 = net(img0,img1)
                     optimizer.zero_grad()
-                    lossContrastive = criterion(output1,output2,label)
+                    lossContrastive = criterion(output1, output2, label)
                     lossContrastive.backward()
                     optimizer.step()
 
                     if i == 0: # print first loss at each epoch
                         print("Epoch number {}\n Current loss {}\n".format(epoch,lossContrastive.item()))
-                        iterationNumber +=10
+                        iterationNumber += 10
                         counter.append(iterationNumber)
                         lossHistory.append(lossContrastive.item())
           
@@ -256,7 +264,7 @@ def main(cuda, train, test, model):
 
         pretrainedModel = None
         folderDatasetTest = dset.ImageFolder(root=Config.testingDir, 
-           transform = transforms.Compose([transforms.Resize((Config.imageSize,Config.imageSize)),transforms.ToTensor()]))
+           transform = transforms.Compose([transforms.Resize((Config.imageSize, Config.imageSize)), transforms.ToTensor()]))
 
         if sys.version_info[0] < 3: # imported model trained using python2.7 than 3.6 changes encoding
             pretrainedModel = torch.load(model)
@@ -266,12 +274,12 @@ def main(cuda, train, test, model):
             print("in version 3 of python, changing encoding to latin (assumes trained using python)")
             pickle.load = partial(pickle.load, encoding="latin1")
             pickle.Unpickler = partial(pickle.Unpickler, encoding="latin1")
-            pretrainedModel = torch.load(model, map_location=lambda storage, loc: storage, pickle_module=pickle)        # load model
+            pretrainedModel = torch.load(model, map_location=lambda storage, loc: storage, pickle_module=pickle) # load model
         
         if test == 'getCSV':
 
             def get_csv(pretrainedModel):
-                """ Trains the network.
+                """Trains the network.
 
                 Args:
                     pretrainedModel (object):
@@ -286,12 +294,12 @@ def main(cuda, train, test, model):
                     testDataLoader:
 
                 Returns:
-                 None.
+                    None.
 
                 """
 
                 # load data and pop top of network
-                testDataloader = DataLoader(folderDatasetTest,num_workers=6,batch_size=1,shuffle=False)    
+                testDataloader = DataLoader(folderDatasetTest, num_workers=6, batch_size=1, shuffle=False)    
                 removed = list(pretrainedModel.children())[:-1]
                 pretrainedModel = torch.nn.Sequential(*removed)
 
@@ -321,7 +329,7 @@ def main(cuda, train, test, model):
         elif test == "getConf":
 
             def get_confusion_matrix():
-                """ Trains the network.
+                """Trains the network.
 
                 Attr:
                     countBen (int):
@@ -341,8 +349,6 @@ def main(cuda, train, test, model):
                     None.
 
                 """
-
-                testLength = len(folderDatasetTest.imgs)
                 countBen = 0
                 countMal = 0
                 malSet = set()
@@ -352,13 +358,13 @@ def main(cuda, train, test, model):
                 while True:
                     imgTuple = random.choice(folderDatasetTest.imgs)
 
-                    if imgTuple[1] == 0:
+                    if imgTuple[1] == 0: # benign
                         if(countBen < 4):
                             benSet.add(imgTuple)
                             if(len(benSet) > countBen):
                                 countBen += 1
 
-                    elif imgTuple[1] == 1:
+                    elif imgTuple[1] == 1: # malignant
                         if(countMal < 4):
                             malSet.add(imgTuple)
                             if(len(malSet) > countMal):
@@ -385,7 +391,7 @@ def main(cuda, train, test, model):
                         x1 = Image.open(colList[j])
 
                         # transform
-                        imgTransform=transforms.Compose([transforms.Resize((Config.imageSize,Config.imageSize)),
+                        imgTransform=transforms.Compose([transforms.Resize((Config.imageSize, Config.imageSize)),
                             transforms.ToTensor()
                             ])
 
@@ -402,12 +408,12 @@ def main(cuda, train, test, model):
                         matrix[i][j] = euclDist.cpu().data.numpy()
 
                 # save similarities in csv
-                file = open('./results/test_confMat.csv','wb')
-                np.savetxt(file,matrix, delimiter = ",")
+                file = open('./results/test_confMat.csv', 'wb')
+                np.savetxt(file, matrix, delimiter = ",")
                 file.close()
 
                 # save names in txt file
-                file = open('./results/test_confMat.txt','w')
+                file = open('./results/test_confMat.txt', 'w')
                 file.write('row (top to bottom):\n')
                 file.write(rowList[0] + '\n')
                 file.write(rowList[1] + '\n')
@@ -427,11 +433,9 @@ def main(cuda, train, test, model):
         elif test == "getPR": # Get Precision, Recall and AP
 
             def get_precision_recall():
-
-                """ Trains the network.
+                """Trains the network.
 
                 Attr:
-                    threshold (int): threshold for detemining class
                     testLength:
                     countBen (int):
                     countMal (int):
@@ -455,7 +459,6 @@ def main(cuda, train, test, model):
                 """
 
                 # varying Variables:
-                threshold = 1 # value to determine what is same class (<=1) and what is wrong (>1)
                 testLength = len(folderDatasetTest.imgs)
                 countBen = 0
                 countMal = 0
@@ -486,26 +489,27 @@ def main(cuda, train, test, model):
 
                 # create row set of images
                 imgList = []
-                imgList.extend([benList[0],malList[0],benList[1], malList[1], benList[2], malList[2],
-                    benList[3], malList[3], benList[4], malList[4] ])
+                imgList.extend([benList[0], malList[0], benList[1], malList[1], benList[2], malList[2],
+                    benList[3], malList[3], benList[4], malList[4]])
                         
-                preds  = np.zeros(shape = (testLength,len(imgList)))
-                target = np.zeros(shape = (testLength,len(imgList)))
+                preds  = np.zeros(shape = (testLength, len(imgList)))
+                target = np.zeros(shape = (testLength, len(imgList)))
+
                 # cycle through one 'class'
                 for i in range(0,len(imgList)):
                     print(i+1)
                     for j in range(0,testLength):
 
                         # get images
-                        x0 = Image.open(imgList[i][0])###################
+                        x0 = Image.open(imgList[i][0])
                         x1 = Image.open(folderDatasetTest.imgs[j][0])
 
                         # transform images
-                        imgTransform=transforms.Compose([transforms.Resize((Config.imageSize,Config.imageSize)),
+                        imgTransform=transforms.Compose([transforms.Resize((Config.imageSize, Config.imageSize)),
                             transforms.ToTensor()
                             ])
 
-                        #forward pass to test (put to variable, add extra dimension and convert to tensor etc)
+                        # forward pass to test (put to variable, add extra dimension and convert to tensor etc)
                         if cuda:
                             pretrainedModel.cuda()
                             output1,output2 = pretrainedModel(Variable(imgTransform(x0).unsqueeze(0)).cuda(),
@@ -514,7 +518,7 @@ def main(cuda, train, test, model):
                             output1,output2 = pretrainedModel(Variable(imgTransform(x0).unsqueeze(0)),
                                 Variable(imgTransform(x1).unsqueeze(0)))
 
-                        #eval similarity and store in dissimalarity
+                        # eval similarity and store in dissimilarity
                         euclDist = F.pairwise_distance(output1, output2)
                         preds[j,i] = euclDist.cpu().data.numpy()
                         target[j,i] = folderDatasetTest.imgs[j][1]
@@ -525,8 +529,7 @@ def main(cuda, train, test, model):
 
                 print('===> PR Curve and AP')
                 for i in range(len(imgList)):
-                    # print(i)
-                    precision[i], recall[i], _ = precision_recall_curve(target[:, i],preds[:, i])
+                    precision[i], recall[i], _ = precision_recall_curve(target[:, i], preds[:, i])
                     avgPrecision[i] = avgPrecision_score(target[:, i], preds[:, i])
 
                 print('===> mAP')
@@ -552,17 +555,14 @@ def main(cuda, train, test, model):
                 plt.savefig('fig.png')
 
                 print('===> re-calculate mAP, started sorting')
-                val = np.array([0,1,2,3,4,5,6,7,8,9])
+                val = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
                 idxPreds = np.argsort(preds, axis=0)
 
                 newPreds = preds[idxPreds[0:10][:], val]
                 newTarget = target[idxPreds[0:10][:], val]
 
                 print('===> re-calculate mAP from 10 rand samples, calc mAP')
-                precision = dict()
-                recall = dict()
                 avgPrecision = dict()
-               
                 avgPrecision["micro"] = average_precision_score(newTarget, newPreds,
                     average="micro")
 

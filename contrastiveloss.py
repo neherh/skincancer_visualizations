@@ -8,26 +8,27 @@ class ContrastiveLoss(torch.nn.Module):
         Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
 
     Args:
-        margin (int): margin or threshold to evaluate contrastive loss
+        margin (int): margin or threshold to evaluate contrastive loss 
 
     Attributes:
         margin (int): margin or threshold to evaluate contrastive loss
 
     """
+
     def __init__(self, margin=2):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
 
     def forward(self, output1, output2, label):
-        """ Overwritten function to eval loss.
+        """Overwritten function to eval loss.
 
         Args:
             output1 (object): first output of the siamese network
-            output2 (object): first output of the siamese network
+            output2 (object): second output of the siamese network
             label (int): label of the image
 
         Returns:
-            lossContrastive
+            lossContrastive (tensor) : returns a tensor wrapped float
 
         """
 
