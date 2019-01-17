@@ -77,6 +77,7 @@ class Config():
     trainBatchSize =  1 #64
     trainNumberEpochs = 100 #d100
     saveInterval = 10
+    imageSize = 10 # 10x10
 
 
 class NotRequiredIf(click.Option):
@@ -255,7 +256,7 @@ def main(cuda, train, test, model):
 
         pretrainedModel = None
         folderDatasetTest = dset.ImageFolder(root=Config.testingDir, 
-           transform = transforms.Compose([transforms.Resize((100,100)),transforms.ToTensor()]))
+           transform = transforms.Compose([transforms.Resize((Config.imageSize,Config.imageSize)),transforms.ToTensor()]))
 
         if sys.version_info[0] < 3: # imported model trained using python2.7 than 3.6 changes encoding
             pretrainedModel = torch.load(model)
@@ -269,8 +270,11 @@ def main(cuda, train, test, model):
         
         if test == 'getCSV':
 
-            def get_csv():
+            def get_csv(pretrainedModel):
                 """ Trains the network.
+
+                Args:
+                    pretrainedModel (object):
 
                 Attr:
                     file:
@@ -294,14 +298,14 @@ def main(cuda, train, test, model):
 
                 # open file, then save in csv file
                 print("===> Testing data, then saving")
-                file = open('test.csv','ab')
+                file = open('./results/test.csv','ab')
                 for batch in testDataloader:
                     x, target = Variable(batch[0]), Variable(batch[1])
                     if cuda:
                         pretrainedModel.cuda()
                         outputFinal = pretrainedModel.forward(x.cuda())
                     else:
-                        outputFinal = pretrainedModel.forward_once(x)
+                        outputFinal = pretrainedModel.forward(x)
 
                     npOut = outputFinal.cpu().data.numpy()
                     npOutCSV = npOut.flatten()
@@ -309,9 +313,9 @@ def main(cuda, train, test, model):
                     npOutCSV = np.reshape(npOutCSV,(1,npOutCSV.size))
                     np.savetxt(file,npOutCSV, delimiter = ",")
 
-                print('Saved results in test.csv')
+                print('Saved results in ./results/test.csv')
 
-            get_csv()
+            get_csv(pretrainedModel)
 
         # Get Confusion Matrix
         elif test == "getConf":
@@ -381,7 +385,7 @@ def main(cuda, train, test, model):
                         x1 = Image.open(colList[j])
 
                         # transform
-                        imgTransform=transforms.Compose([transforms.Resize((100,100)),
+                        imgTransform=transforms.Compose([transforms.Resize((Config.imageSize,Config.imageSize)),
                             transforms.ToTensor()
                             ])
 
@@ -398,12 +402,12 @@ def main(cuda, train, test, model):
                         matrix[i][j] = euclDist.cpu().data.numpy()
 
                 # save similarities in csv
-                file = open('results/confusion_mat/test_confMat.csv','wb')
+                file = open('./results/test_confMat.csv','wb')
                 np.savetxt(file,matrix, delimiter = ",")
                 file.close()
 
                 # save names in txt file
-                file = open('results/confusion_mat/test_confMat.txt','w')
+                file = open('./results/test_confMat.txt','w')
                 file.write('row (top to bottom):\n')
                 file.write(rowList[0] + '\n')
                 file.write(rowList[1] + '\n')
@@ -416,7 +420,7 @@ def main(cuda, train, test, model):
                 file.write(colList[3] + '\n')
                 file.close()
 
-                print('===> saved to file to results/confusion_mat/test_confMat.csv')
+                print('===> saved to file to ./results/test_confMat.csv')
 
             get_confusion_matrix()
 
@@ -497,7 +501,7 @@ def main(cuda, train, test, model):
                         x1 = Image.open(folderDatasetTest.imgs[j][0])
 
                         # transform images
-                        imgTransform=transforms.Compose([transforms.Resize((100,100)),
+                        imgTransform=transforms.Compose([transforms.Resize((Config.imageSize,Config.imageSize)),
                             transforms.ToTensor()
                             ])
 
@@ -529,7 +533,7 @@ def main(cuda, train, test, model):
                 # A "micro-average": quantifying score on all classes jointly
                 precision["micro"], recall["micro"], _ = precision_recall_curve(target.ravel(),
                     preds.ravel())
-                avgPrecision["micro"] = avgPrecision_score(target, preds, average="micro")
+                avgPrecision["micro"] = average_precision_score(target, preds, average="micro")
                 print('Average precision score, micro-averaged over all classes: {0:0.2f}'
                     .format(avgPrecision["micro"]))
 
@@ -559,7 +563,7 @@ def main(cuda, train, test, model):
                 recall = dict()
                 avgPrecision = dict()
                
-                avgPrecision["micro"] = avgPrecision_score(newTarget, newPreds,
+                avgPrecision["micro"] = average_precision_score(newTarget, newPreds,
                     average="micro")
 
                 print('Average precision score, micro-averaged over all classes: {0:0.2f}'
